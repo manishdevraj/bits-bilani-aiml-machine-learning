@@ -22,9 +22,6 @@ def preprocess_input(df, model):
     df.columns = [c.lower() for c in df.columns]
 
     # 2. Define Binary Mappings (mimicking drop_first=True)
-    # Since drop_first=True was used:
-    # 'Gender' (Female/Male) -> Becomes 'gender_Male' (1=Male, 0=Female)
-    # 'Polyuria' (No/Yes) -> Becomes 'polyuria_Yes' (1=Yes, 0=No)
     binary_features = {
         'gender': 'Male',
         'polyuria': 'Yes',
@@ -45,24 +42,16 @@ def preprocess_input(df, model):
 
     # 3. Apply Encoding
     for col, positive_value in binary_features.items():
-        # Check if the raw column exists (e.g., 'polyuria')
         if col in df.columns:
-            # Create the specific column name the model expects (e.g., 'polyuria_Yes')
             encoded_col_name = f"{col}_{positive_value}"
-            
             # Map values: positive_value becomes 1, everything else 0
             df[encoded_col_name] = df[col].apply(lambda x: 1 if str(x).strip() == positive_value else 0)
-            
-            # Drop the original raw column
             df.drop(col, axis=1, inplace=True)
 
     # 4. Align columns with the model
-    # This handles cases where the uploaded CSV is ALREADY encoded (like test_data.csv)
-    # or if the columns are in a different order.
     if hasattr(model, "feature_names_in_"):
         try:
             # Reindex forces the dataframe columns to match the model's training columns exactly
-            # fill_value=0 ensures any missing columns are filled with 0s
             df = df.reindex(columns=model.feature_names_in_, fill_value=0)
         except Exception as e:
             st.error(f"Error aligning columns: {e}")
@@ -73,7 +62,7 @@ def preprocess_input(df, model):
 # 1. Model Selection
 model_dir = "model"
 if os.path.exists(model_dir):
-    model_files = [f for f in os.listdir(model_dir) if f.endswith('.pkl')]
+    model_files = [f for f in os.listdir(model_dir) if f.endswith('.pkl') and 'scaler' not in f]
     selected_model_file = st.selectbox("Select a Classification Model", model_files)
 else:
     st.error("Model directory not found.")
@@ -87,30 +76,41 @@ if uploaded_file is not None and selected_model_file:
     df = pd.read_csv(uploaded_file)
     st.write("Data Preview:", df.head())
     
-    # Auto-select target (usually the last column)
+    # Auto-select target
     target_col = st.selectbox("Select Target Column", df.columns, index=len(df.columns)-1)
     
     if st.button("Run Prediction"):
-        model_path = os.path.join(model_dir, selected_model_file)
-        model = joblib.load(model_path)
-        scaler = joblib.load(os.path.join(model_dir, 'scaler.pkl'))
-        
-        # Separate Features & Target
-        X_raw = df.drop(columns=[target_col])
-        y_test = df[target_col]
-
-        X_test = preprocess_input(X_raw, model)
-        X_test_scaled = scaler.transform(X_test)
-        
-        # Preprocess Target
-        mapping = {'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0, 'Male': 1, 'Female': 0}
-        if y_test.dtype == 'object':
-             y_test = y_test.map(mapping).fillna(0)
-        
-        # Predict
         try:
-            X_array = X_test_scaled.values
-            y_pred = model.predict(X_array)
+            # Load Model & Scaler
+            model_path = os.path.join(model_dir, selected_model_file)
+            model = joblib.load(model_path)
+            
+            scaler_path = os.path.join(model_dir, 'scaler.pkl')
+            if os.path.exists(scaler_path):
+                scaler = joblib.load(scaler_path)
+            else:
+                st.error("Scaler not found! Please ensure scaler.pkl is in the model folder.")
+                st.stop()
+            
+            # Separate Features & Target
+            X_raw = df.drop(columns=[target_col])
+            y_test = df[target_col]
+
+            # 1. Preprocess (DataFrame with Names)
+            X_test = preprocess_input(X_raw, model)
+
+            # 2. Scale (Pass VALUES ONLY to avoid feature name mismatch)
+            # This is the fix for "ValueError: feature names"
+            X_test_scaled = scaler.transform(X_test.values)
+            
+            # 3. Preprocess Target
+            mapping = {'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0, 'Male': 1, 'Female': 0}
+            if y_test.dtype == 'object':
+                 y_test = y_test.map(mapping).fillna(0)
+            
+            # 4. Predict
+            # X_test_scaled is already an array, so we pass it directly
+            y_pred = model.predict(X_test_scaled)
             
             # Metrics
             st.subheader("Model Performance Metrics")
@@ -126,4 +126,4 @@ if uploaded_file is not None and selected_model_file:
             st.write(confusion_matrix(y_test, y_pred))
             
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error during prediction: {e}")
