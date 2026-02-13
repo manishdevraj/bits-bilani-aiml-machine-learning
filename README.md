@@ -51,4 +51,4 @@ Based on the evaluation metrics above, here are the observations for each model:
 
 ## 5. How to Run
 1. Install dependencies: `pip install -r requirements.txt`
-2. Run the Streamlit app: `streamlit run app.py`
+2. Run the Streamlit app: `streamlit run streamlit_app.py`
