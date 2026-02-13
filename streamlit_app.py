@@ -10,28 +10,23 @@ st.set_page_config(page_title="ML Assignment 2", layout="wide")
 st.title("Machine Learning Model Deployment")
 st.write("M.Tech (AIML) - Assignment 2")
 
-def preprocess_input(data):
-    """
-    Converts categorical text inputs (Yes/No, Male/Female) 
-    to the numerical format expected by the model.
-    """
-    # Define your mapping dictionary (Ensure this matches your training data!)
-    encoding_map = {
-        'Male': 1, 
-        'Female': 0,
-        'Yes': 1, 
-        'No': 0,
-        'Positive': 1, 
-        'Negative': 0
+def preprocess_input(df):
+    # exact mapping used in training
+    # (Update 1/0 if your specific training code used different values)
+    mapping = {
+        'Male': 1, 'Female': 0,
+        'Yes': 1, 'No': 0,
+        'Positive': 1, 'Negative': 0
     }
     
-    # Apply the mapping to the dataframe
-    # We use .replace() to swap text for numbers
-    for column in data.columns:
-        if data[column].dtype == 'object':  # Only check text columns
-            data[column] = data[column].map(encoding_map)
-            
-    return data
+    # 1. Map all categorical values
+    df = df.replace(mapping)
+    
+    # 2. Force everything to numeric (coercing errors to 0)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+    return df
 
 # 1. Model Selection Dropdown [cite: 92]
 model_dir = "model"
@@ -61,7 +56,11 @@ if uploaded_file is not None and selected_model_file:
         # Prepare Data
         X_test = df.drop(columns=[target_col])
         # X_test = preprocess_input(df.drop(columns=[target_col]))
+        X_test = preprocess_input(X_test)
         y_test = df[target_col]
+        # If target is text (Positive/Negative), map it too
+        if y_test.dtype == 'object':
+             y_test = y_test.map({'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0})
         
         # Predict
         try:
