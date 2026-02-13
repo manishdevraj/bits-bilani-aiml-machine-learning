@@ -11,49 +11,64 @@ st.set_page_config(page_title="ML Assignment 2", layout="wide")
 st.title("Machine Learning Model Deployment")
 st.write("M.Tech (AIML) - Assignment 2")
 
-# --- CORE FIX: Smart Column Matching ---
-def align_columns(df, model):
+def preprocess_input(df, model):
     """
-    Forces the input DataFrame to match the model's expected columns.
-    It handles case sensitivity and creates missing columns with 0s.
+    Manually converts raw data to match the One-Hot Encoded format 
+    (drop_first=True) used during training.
     """
-    df_processed = df.copy()
+    df = df.copy()
     
-    # 1. Normalize both input and model columns to lowercase for matching
-    df_processed.columns = [c.strip().lower() for c in df_processed.columns]
-    
-    if hasattr(model, "feature_names_in_"):
-        required_cols = list(model.feature_names_in_)
-        
-        # Create a new dataframe with the exact columns the model needs
-        df_final = pd.DataFrame(index=df_processed.index)
-        
-        for col in required_cols:
-            col_lower = col.lower()
-            
-            # Case 1: Exact match found (ignoring case)
-            if col_lower in df_processed.columns:
-                df_final[col] = df_processed[col_lower]
-            
-            # Case 2: Column is "gender_Male" but input is "Gender"
-            elif "male" in col_lower and "gender" in df_processed.columns:
-                 df_final[col] = df_processed["gender"].apply(lambda x: 1 if str(x).lower() in ['male', '1'] else 0)
+    # 1. Standardize column names to lowercase for matching
+    df.columns = [c.lower() for c in df.columns]
 
-            # Case 3: Column is "polyuria_Yes" but input is "Polyuria"
-            elif "_yes" in col_lower:
-                base_name = col_lower.replace("_yes", "")
-                if base_name in df_processed.columns:
-                    df_final[col] = df_processed[base_name].apply(lambda x: 1 if str(x).lower() in ['yes', 'positive', '1'] else 0)
-                else:
-                    df_final[col] = 0 # Missing column -> fill with 0
+    # 2. Define Binary Mappings (mimicking drop_first=True)
+    # Since drop_first=True was used:
+    # 'Gender' (Female/Male) -> Becomes 'gender_Male' (1=Male, 0=Female)
+    # 'Polyuria' (No/Yes) -> Becomes 'polyuria_Yes' (1=Yes, 0=No)
+    binary_features = {
+        'gender': 'Male',
+        'polyuria': 'Yes',
+        'polydipsia': 'Yes',
+        'sudden_weight_loss': 'Yes',
+        'weakness': 'Yes',
+        'polyphagia': 'Yes',
+        'genital_thrush': 'Yes',
+        'visual_blurring': 'Yes',
+        'itching': 'Yes',
+        'irritability': 'Yes',
+        'delayed_healing': 'Yes',
+        'partial_paresis': 'Yes',
+        'muscle_stiffness': 'Yes',
+        'alopecia': 'Yes',
+        'obesity': 'Yes'
+    }
+
+    # 3. Apply Encoding
+    for col, positive_value in binary_features.items():
+        # Check if the raw column exists (e.g., 'polyuria')
+        if col in df.columns:
+            # Create the specific column name the model expects (e.g., 'polyuria_Yes')
+            encoded_col_name = f"{col}_{positive_value}"
             
-            # Case 4: Completely missing
-            else:
-                df_final[col] = 0
-                
-        return df_final
-    else:
-        return df_processed
+            # Map values: positive_value becomes 1, everything else 0
+            df[encoded_col_name] = df[col].apply(lambda x: 1 if str(x).strip() == positive_value else 0)
+            
+            # Drop the original raw column
+            df.drop(col, axis=1, inplace=True)
+
+    # 4. Align columns with the model
+    # This handles cases where the uploaded CSV is ALREADY encoded (like test_data.csv)
+    # or if the columns are in a different order.
+    if hasattr(model, "feature_names_in_"):
+        try:
+            # Reindex forces the dataframe columns to match the model's training columns exactly
+            # fill_value=0 ensures any missing columns are filled with 0s
+            df = df.reindex(columns=model.feature_names_in_, fill_value=0)
+        except Exception as e:
+            st.error(f"Error aligning columns: {e}")
+            st.stop()
+            
+    return df
 
 # 1. Model Selection
 model_dir = "model"
@@ -83,7 +98,7 @@ if uploaded_file is not None and selected_model_file:
         X_raw = df.drop(columns=[target_col])
         y_test = df[target_col]
 
-        X_test = align_columns(X_raw, model)
+        X_test = preprocess_input(X_raw, model)
         
         # Preprocess Target
         mapping = {'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0, 'Male': 1, 'Female': 0}
