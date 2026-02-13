@@ -72,7 +72,6 @@ if uploaded_file is not None and selected_model_file:
         X_test = df.drop(columns=[target_col])
         y_test = df[target_col]
 
-        # --- APPLY THE FIX ---
         # Pass 'model' so we can reorder columns correctly
         X_test = preprocess_input(X_test, model) 
         
@@ -82,8 +81,9 @@ if uploaded_file is not None and selected_model_file:
         
         # Predict
         try:
-            y_pred = model.predict(X_test)
-            y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+            X_test_array = X_test.values
+            y_pred = model.predict(X_test_array)
+            y_prob = model.predict_proba(X_test_array)[:, 1] if hasattr(model, "predict_proba") else None
             
             # [cite_start]3. Display Metrics [cite: 93]
             st.subheader("Model Performance Metrics")
