@@ -59,8 +59,8 @@ if uploaded_file is not None and selected_model_file:
         model = joblib.load(model_path)
         
         # Prepare Data
-        # X_test = df.drop(columns=[target_col])
-        X_test = preprocess_input(df.drop(columns=[target_col]))
+        X_test = df.drop(columns=[target_col])
+        # X_test = preprocess_input(df.drop(columns=[target_col]))
         y_test = df[target_col]
         
         # Predict
