@@ -93,12 +93,14 @@ if uploaded_file is not None and selected_model_file:
     if st.button("Run Prediction"):
         model_path = os.path.join(model_dir, selected_model_file)
         model = joblib.load(model_path)
+        scaler = joblib.load(os.path.join(model_dir, 'scaler.pkl'))
         
         # Separate Features & Target
         X_raw = df.drop(columns=[target_col])
         y_test = df[target_col]
 
         X_test = preprocess_input(X_raw, model)
+        X_test_scaled = scaler.transform(X_test.values)
         
         # Preprocess Target
         mapping = {'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0, 'Male': 1, 'Female': 0}
@@ -107,7 +109,7 @@ if uploaded_file is not None and selected_model_file:
         
         # Predict
         try:
-            X_array = X_test.values
+            X_array = X_test_scaled.values
             y_pred = model.predict(X_array)
             
             # Metrics
