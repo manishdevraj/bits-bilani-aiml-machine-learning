@@ -100,7 +100,7 @@ if uploaded_file is not None and selected_model_file:
         y_test = df[target_col]
 
         X_test = preprocess_input(X_raw, model)
-        X_test_scaled = scaler.transform(X_test.values)
+        X_test_scaled = scaler.transform(X_test)
         
         # Preprocess Target
         mapping = {'Positive': 1, 'Negative': 0, 'Yes': 1, 'No': 0, 'Male': 1, 'Female': 0}
